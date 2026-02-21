@@ -18,8 +18,35 @@ def download_url(url: str, path: str = "~/Downloads") -> dict:
         dict with success status and details
     """
     try:
+        if not url:
+            return {
+                "success": False,
+                "error": "URL 不能为空",
+                "suggestion": "请提供有效的下载链接",
+            }
+
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return {
+                "success": False,
+                "error": f"无效的 URL: {url}",
+                "suggestion": "URL 应以 http:// 或 https:// 开头",
+            }
+
+        if parsed.scheme not in ("http", "https"):
+            return {
+                "success": False,
+                "error": f"不支持的协议: {parsed.scheme}",
+                "suggestion": "仅支持 HTTP 和 HTTPS 链接",
+            }
+
         path = os.path.expanduser(path)
-        os.makedirs(path, exist_ok=True)
+        if not path:
+            return {
+                "success": False,
+                "error": "保存路径不能为空",
+                "suggestion": "请提供有效的本地保存路径",
+            }
 
         filename = Path(urlparse(url).path).name
         if not filename:

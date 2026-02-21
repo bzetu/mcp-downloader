@@ -32,6 +32,20 @@ def download_scp(
     local_file = None
 
     try:
+        if not host:
+            return {
+                "success": False,
+                "error": "服务器地址不能为空",
+                "suggestion": "请提供远程服务器的 IP 地址或主机名",
+            }
+
+        if not remote_path:
+            return {
+                "success": False,
+                "error": "远程文件路径不能为空",
+                "suggestion": "请提供远程服务器上的文件完整路径",
+            }
+
         if not username or not password:
             return {
                 "success": False,

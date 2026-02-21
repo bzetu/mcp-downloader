@@ -1,12 +1,14 @@
 import os
+import shutil
 import subprocess
 import threading
 from pathlib import Path
+from typing import Optional
 
 from mcp_downloader.utils.stop_flag import is_stopped
 
 
-def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
+def git_clone(url: str, path: str = ".", branch: Optional[str] = None) -> dict:
     """
     Clone Git repositories
 
@@ -18,7 +20,23 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
     Returns:
         dict with success status and details
     """
+    target_path = None
+
     try:
+        if not url:
+            return {
+                "success": False,
+                "error": "Git 仓库 URL 不能为空",
+                "suggestion": "请提供 Git 仓库的 URL 地址",
+            }
+
+        if not url.startswith(("http://", "https://", "git@", "ssh://")):
+            return {
+                "success": False,
+                "error": f"无效的 Git 仓库 URL: {url}",
+                "suggestion": "URL 应以 http://, https://, git@, 或 ssh:// 开头",
+            }
+
         path = os.path.expanduser(path)
 
         repo_name = Path(url.split("/")[-1]).stem
@@ -46,9 +64,7 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
                 if is_stopped():
                     process.kill()
                     return True
-                import time
-
-                time.sleep(0.5)
+                threading.Event().wait(0.5)
             return False
 
         stop_thread = threading.Thread(target=check_stop)
@@ -59,9 +75,7 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
-            if os.path.exists(target_path):
-                import shutil
-
+            if target_path and os.path.exists(target_path):
                 shutil.rmtree(target_path, ignore_errors=True)
             return {
                 "success": False,
@@ -72,9 +86,7 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
         stop_thread.join(timeout=1)
 
         if is_stopped():
-            if os.path.exists(target_path):
-                import shutil
-
+            if target_path and os.path.exists(target_path):
                 shutil.rmtree(target_path, ignore_errors=True)
             return {
                 "success": False,
@@ -92,9 +104,7 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
             }
         else:
             error_msg = stderr.decode("utf-8", errors="replace")
-            if os.path.exists(target_path):
-                import shutil
-
+            if target_path and os.path.exists(target_path):
                 shutil.rmtree(target_path, ignore_errors=True)
             if "Authentication failed" in error_msg or "Permission denied" in error_msg:
                 return {
@@ -115,9 +125,7 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
             "suggestion": "请先安装 Git，或使用 git clone 命令手动克隆",
         }
     except Exception as e:
-        if os.path.exists(target_path):
-            import shutil
-
+        if target_path and os.path.exists(target_path):
             shutil.rmtree(target_path, ignore_errors=True)
         return {
             "success": False,
