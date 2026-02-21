@@ -1,0 +1,22 @@
+[project]
+name = "mcp-downloader"
+version = "0.1.0"
+description = "MCP Download Tools - URL, SCP, Git Clone"
+authors = [{name = "Your Name"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "paramiko>=3.0.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+mcp-downloader = "mcp_downloader.main:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_downloader*"]
