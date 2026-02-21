@@ -1,6 +1,9 @@
 import os
 import subprocess
+import threading
 from pathlib import Path
+
+from mcp_downloader.utils.stop_flag import is_stopped
 
 
 def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
@@ -36,9 +39,50 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
             cmd.extend(["--branch", branch])
         cmd.extend([url, target_path])
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        if result.returncode == 0:
+        def check_stop():
+            while process.poll() is None:
+                if is_stopped():
+                    process.kill()
+                    return True
+                import time
+
+                time.sleep(0.5)
+            return False
+
+        stop_thread = threading.Thread(target=check_stop)
+        stop_thread.start()
+
+        try:
+            stdout, stderr = process.communicate(timeout=300)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            if os.path.exists(target_path):
+                import shutil
+
+                shutil.rmtree(target_path, ignore_errors=True)
+            return {
+                "success": False,
+                "error": "克隆超时",
+                "suggestion": "请尝试使用 git clone 命令手动克隆，或检查网络连接",
+            }
+
+        stop_thread.join(timeout=1)
+
+        if is_stopped():
+            if os.path.exists(target_path):
+                import shutil
+
+                shutil.rmtree(target_path, ignore_errors=True)
+            return {
+                "success": False,
+                "error": "克隆已取消",
+                "cancelled": True,
+            }
+
+        if process.returncode == 0:
             return {
                 "success": True,
                 "message": f"Successfully cloned {repo_name}",
@@ -47,7 +91,11 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
                 "branch": branch or "default",
             }
         else:
-            error_msg = result.stderr
+            error_msg = stderr.decode("utf-8", errors="replace")
+            if os.path.exists(target_path):
+                import shutil
+
+                shutil.rmtree(target_path, ignore_errors=True)
             if "Authentication failed" in error_msg or "Permission denied" in error_msg:
                 return {
                     "success": False,
@@ -60,12 +108,6 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
                 "suggestion": "请尝试使用 git clone 命令手动克隆",
             }
 
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": "克隆超时",
-            "suggestion": "请尝试使用 git clone 命令手动克隆，或检查网络连接",
-        }
     except FileNotFoundError:
         return {
             "success": False,
@@ -73,6 +115,10 @@ def git_clone(url: str, path: str = ".", branch: str = None) -> dict:
             "suggestion": "请先安装 Git，或使用 git clone 命令手动克隆",
         }
     except Exception as e:
+        if os.path.exists(target_path):
+            import shutil
+
+            shutil.rmtree(target_path, ignore_errors=True)
         return {
             "success": False,
             "error": f"Unexpected error: {str(e)}",

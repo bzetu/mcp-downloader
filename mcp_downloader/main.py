@@ -6,6 +6,8 @@ from pathlib import Path
 from mcp_downloader.tools.download_url import download_url
 from mcp_downloader.tools.download_scp import download_scp
 from mcp_downloader.tools.git_clone import git_clone
+from mcp_downloader.utils import stop_flag
+from mcp_downloader.utils.stop_flag import set_stop, reset
 
 
 TOOLS = {
@@ -140,9 +142,14 @@ def main():
         try:
             line = sys.stdin.readline()
             if not line:
+                set_stop()
                 break
 
             request = json.loads(line.strip())
+
+            if request.get("method") == "tools/call":
+                reset()
+
             response = process_request(request)
             print(json.dumps(response), flush=True)
 
